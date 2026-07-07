@@ -1,6 +1,6 @@
 -- ============================================================
--- GOOSE HUB — VICIOUS BEE KILLER 
--- Created by happy goose
+-- GOOSE HUB — VICIOUS BEE KILLER
+-- Created by happy goose 
 -- ============================================================
 
 local Kavo = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
@@ -30,7 +30,7 @@ pcall(function()
     end
 end)
 
-_G.TweenSpeed = SharedData and SharedData.TweenSpeed or 400
+_G.TweenSpeed = SharedData and SharedData.TweenSpeed or 50
 _G.ThornsCollected = SharedData and SharedData.Thorns or 0
 _G.StartTime = SharedData and SharedData.StartTime or tick()
 _G.ServerHopMode = SharedData and SharedData.HopMode or "Wait Spawn"
@@ -92,15 +92,14 @@ local FieldsConfig = {
 }
 
 -- ============================================================
--- ИНТЕРФЕЙС: СТРОГИЙ ЧЕРНО-КРАСНЫЙ СТИЛЬ (BloodTheme)
+-- ИНТЕРФЕЙС
 -- ============================================================
 local Window = Kavo.CreateLib("GOOSE HUB v0.4 — VICIOUS BEE KILLER", "BloodTheme")
 local MainTab = Window:NewTab("Main")
 
--- РАЗДЕЛ НАСТРОЕК
 local MainSection = MainTab:NewSection("Core Configuration")
 
-MainSection:NewSlider("Tween Speed", "Movement velocity for player transitions", 600, 100, function(Value) 
+MainSection:NewSlider("Tween Speed", "Movement velocity (Keep 45-60 for safety)", 150, 1, function(Value) 
     _G.TweenSpeed = Value 
 end)
 
@@ -108,7 +107,6 @@ MainSection:NewDropdown("Server Hop Mode", "Execution method when target is abse
     _G.ServerHopMode = Option 
 end)
 
--- РАЗДЕЛ СТАТИСТИКИ
 local StatsSection = MainTab:NewSection("Session Statistics")
 StatsSection:NewLabel("Developer: happy goose")
 local labelKilled = StatsSection:NewLabel("Vicious Killed: 0")
@@ -154,102 +152,6 @@ pcall(function()
     for _, v in pairs(getconnections(player.Idled)) do v:Disable() end
 end)
 
-local function serverHop()
-    notify("Goose Hub", "Searching for unique server pool...")
-    if game.JobId and game.JobId ~= "" then _G.VisitedServers[game.JobId] = tick() end
-    task.wait(0.5)
-    prepareTeleportData()
-    
-    local placeId = game.PlaceId
-    local serverList = {}
-    
-    local ok, err = pcall(function()
-        local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
-        local rawData = game:HttpGet(url)
-        local decoded = Http:JSONDecode(rawData)
-        
-        if decoded and decoded.data then
-            for _, server in ipairs(decoded.data) do
-                if server.id and not _G.VisitedServers[server.id] then
-                    if server.playing and server.maxPlayers then
-                        if server.playing < math.floor(server.maxPlayers * 0.8) and server.playing > 0 then
-                            table.insert(serverList, server)
-                        end
-                    end
-                end
-            end
-        end
-    end)
-    
-    if ok and #serverList > 0 then
-        local picked = serverList[math.random(1, #serverList)]
-        _G.VisitedServers[picked.id] = tick()
-        
-        print("[Goose Hub] Connecting to unique instance (" .. picked.playing .. "/" .. picked.maxPlayers .. ")")
-        notify("Goose Hub", "Teleporting to fresh instance...")
-        
-        TeleportService:TeleportToPlaceInstance(placeId, picked.id, player)
-        task.wait(5)
-        serverHop() 
-    else
-        print("[Goose Hub] Pool depleted. Resetting tracking cache.")
-        _G.VisitedServers = {}
-        if game.JobId then _G.VisitedServers[game.JobId] = tick() end
-        pcall(function() TeleportService:Teleport(placeId, player) end)
-    end
-end
-
-local function tweenTo(targetPosition)
-    local hrp = getHRP()
-    if not hrp then return end
-    local startPos = hrp.Position
-    
-    local endPos = targetPosition + Vector3.new(0, math.random(4, 7), 0)
-    local distance = (endPos - startPos).Magnitude
-    
-    local dynamicSpeed = _G.TweenSpeed + math.random(-35, 35)
-    local duration = distance / dynamicSpeed
-
-    local flyPlat = Instance.new("Part")
-    local flyPlatName = "MeshPart_" .. tostring(math.random(1000, 9999))
-    flyPlat.Size = Vector3.new(15, 1, 15)
-    flyPlat.Anchored = true
-    flyPlat.Transparency = 1
-    flyPlat.CanCollide = true
-    flyPlat.Name = flyPlatName
-    local safeParent = workspace:FindFirstChild("Fields") or workspace
-    flyPlat.Parent = safeParent
-    flyPlat.CFrame = hrp.CFrame - Vector3.new(0, 3.5, 0)
-
-    local platConn = RunService.Heartbeat:Connect(function()
-        if hrp and workspace:FindFirstChild(flyPlatName, true) or safeParent:FindFirstChild(flyPlatName) then 
-            flyPlat.CFrame = hrp.CFrame - Vector3.new(0, 3.5, 0) 
-        end
-    end)
-
-    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(endPos)})
-    tween:Play()
-    tween.Completed:Wait()
-    
-    platConn:Disconnect()
-    flyPlat:Destroy()
-    
-    task.wait(math.random(1, 3) / 10)
-end
-
-local function isFieldAllowed(position)
-    local fieldsFolder = workspace:FindFirstChild("Fields")
-    if not fieldsFolder then return true end
-    for _, field in ipairs(fieldsFolder:GetChildren()) do
-        if field:IsA("BasePart") then
-            local distance = (Vector3.new(position.X, 0, position.Z) - Vector3.new(field.Position.X, 0, field.Position.Z)).Magnitude
-            if distance < 145 then return FieldsConfig[field.Name] == true end
-        end
-    end
-    return true
-end
-
 local function findThorn()
     local wts = workspace:FindFirstChild("Particles") and workspace.Particles:FindFirstChild("WTs")
     if not wts then return nil end
@@ -279,44 +181,176 @@ local function findVicious()
     return nil
 end
 
--- ============================================================
--- ОПТИМИЗИРОВАННЫЙ ЗАХВАТ УЛЬЯ (БЕЗ ЛИШНИХ ПРОВЕРОК)
--- ============================================================
+local function serverHop()
+    notify("Goose Hub", "Searching for unique server pool...")
+    if game.JobId and game.JobId ~= "" then _G.VisitedServers[game.JobId] = tick() end
+    task.wait(0.05) 
+    prepareTeleportData()
+    
+    local placeId = game.PlaceId
+    local serverList = {}
+    
+    local ok, err = pcall(function()
+        local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+        local rawData = game:HttpGet(url)
+        local decoded = Http:JSONDecode(rawData)
+        
+        if decoded and decoded.data then
+            for _, server in ipairs(decoded.data) do
+                if server.id and not _G.VisitedServers[server.id] then
+                    if server.playing and server.maxPlayers then
+                        if server.playing < math.floor(server.maxPlayers * 0.8) and server.playing > 0 then
+                            table.insert(serverList, server)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    
+    if ok and #serverList > 0 then
+        local picked = serverList[math.random(1, #serverList)]
+        _G.VisitedServers[picked.id] = tick()
+        
+        print("[Goose Hub] Connecting to unique instance (" .. picked.playing .. "/" .. picked.maxPlayers .. ")")
+        
+        TeleportService:TeleportToPlaceInstance(placeId, picked.id, player)
+        task.wait(4)
+        serverHop() 
+    else
+        _G.VisitedServers = {}
+        if game.JobId then _G.VisitedServers[game.JobId] = tick() end
+        pcall(function() TeleportService:Teleport(placeId, player) end)
+    end
+end
+
+local function tweenTo(targetPosition)
+    local hrp = getHRP()
+    if not hrp then return end
+    local startPos = hrp.Position
+    
+    local endPos = targetPosition + Vector3.new(math.random(-1, 1), math.random(4, 7), math.random(-1, 1))
+    local distance = (endPos - startPos).Magnitude
+    
+    local dynamicSpeed = math.max(1, _G.TweenSpeed + math.random(-2, 2))
+    local duration = distance / dynamicSpeed
+
+    local flyPlat = Instance.new("Part")
+    flyPlat.Size = Vector3.new(14, 1, 14)
+    flyPlat.Anchored = true
+    flyPlat.Transparency = 1
+    flyPlat.CanCollide = true
+    flyPlat.Name = "BasePart"
+    
+    local safeParent = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera") or workspace
+    flyPlat.Parent = safeParent
+    flyPlat.CFrame = hrp.CFrame - Vector3.new(0, 3.5, 0)
+
+    local platConn = RunService.Heartbeat:Connect(function()
+        if hrp and safeParent:FindFirstChild("BasePart") then 
+            flyPlat.CFrame = hrp.CFrame - Vector3.new(0, 3.5, 0) 
+        end
+    end)
+
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(endPos)})
+    tween:Play()
+    tween.Completed:Wait()
+    
+    platConn:Disconnect()
+    flyPlat:Destroy()
+    
+    task.wait(math.random(2, 5) / 10)
+end
+
+local function isFieldAllowed(position)
+    local fieldsFolder = workspace:FindFirstChild("Fields")
+    if not fieldsFolder then return true end
+    for _, field in ipairs(fieldsFolder:GetChildren()) do
+        if field:IsA("BasePart") then
+            local distance = (Vector3.new(position.X, 0, position.Z) - Vector3.new(field.Position.X, 0, field.Position.Z)).Magnitude
+            if distance < 145 then return FieldsConfig[field.Name] == true end
+        end
+    end
+    return true
+end
+
+local function checkOwnHive()
+    local honeycombs = workspace:FindFirstChild("Honeycombs")
+    if honeycombs then
+        for _, hive in ipairs(honeycombs:GetChildren()) do
+            local owner = hive:FindFirstChild("Owner")
+            if owner and owner:IsA("ObjectValue") and owner.Value == player then
+                return true
+            end
+        end
+    end
+    
+    local canvases = workspace:FindFirstChild("HiveDeco") and workspace.HiveDeco:FindFirstChild("StickerCanvases")
+    if canvases then
+        for i = 1, 6 do
+            local canvas = canvases:FindFirstChild("StickerCanvas" .. i)
+            if canvas then
+                local nameTag = canvas:FindFirstChild("PlayerName") or canvas:FindFirstChild("OwnerTag")
+                if nameTag then
+                    if nameTag:IsA("StringValue") and nameTag.Value == player.Name then
+                        return true
+                    elseif nameTag:IsA("ObjectValue") and nameTag.Value == player then
+                        return true
+                    elseif nameTag:IsA("TextLabel") and nameTag.Text == player.Name then
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
 local function claimAllHives()
+    if checkOwnHive() then return end 
+    
     local canvases = workspace:FindFirstChild("HiveDeco") and workspace.HiveDeco:FindFirstChild("StickerCanvases")
     if not canvases then return end
     
-    local claimed = false
     for i = 1, 6 do
-        pcall(function()
-            local canvas = canvases:FindFirstChild("StickerCanvas" .. i)
-            if canvas and canvas:FindFirstChild("OriginPart") then
-                local nameTag = canvas:FindFirstChild("PlayerName") or canvas:FindFirstChild("OwnerTag")
-                local occupied = canvas:FindFirstChild("Occupied")
-                
-                if not nameTag and (not occupied or occupied.Value == false or occupied.Value == 0) then
-                    print("[Goose Hub] Unclaimed Hive detected: Slot " .. i)
-                    
-                    tweenTo(canvas.OriginPart.Position)
-                    task.wait(0.4 + (math.random() * 0.2))
-                    
-                    local hrp = getHRP()
-                    if hrp then hrp.CFrame = canvas.OriginPart.CFrame + Vector3.new(0, 2, 0) end
-                    task.wait(0.2)
-                    
-                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
-                    task.wait(0.1 + (math.random() * 0.15)) 
-                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
-                    task.wait(0.6 + (math.random() * 0.3))
-                    
-                    claimed = true
+        if checkOwnHive() then return end
+        
+        local canvas = canvases:FindFirstChild("StickerCanvas" .. i)
+        if canvas and canvas:FindFirstChild("OriginPart") then
+            local nameTag = canvas:FindFirstChild("PlayerName") or canvas:FindFirstChild("OwnerTag")
+            local occupied = canvas:FindFirstChild("Occupied")
+            
+            local isFree = not nameTag and (not occupied or occupied.Value == false or occupied.Value == 0)
+            
+            local honeycombs = workspace:FindFirstChild("Honeycombs")
+            if honeycombs then
+                local realHive = honeycombs:FindFirstChild("Honeycomb" .. i)
+                if realHive and realHive:FindFirstChild("Owner") and realHive.Owner.Value ~= nil then
+                    isFree = false 
                 end
             end
-        end)
-        if claimed then 
-            print("[Goose Hub] Hive secured. Flying to target immediately.")
-            break -- Мгновенный выход, не проверяя остальные слоты
+            
+            if isFree then
+                tweenTo(canvas.OriginPart.Position)
+                task.wait(0.2)
+                
+                local hrp = getHRP()
+                if hrp then hrp.CFrame = canvas.OriginPart.CFrame + Vector3.new(0, 2, 0) end
+                task.wait(0.1)
+                
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                task.wait(math.random(15, 25) / 100) 
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                
+                task.wait(0.8) 
+                if checkOwnHive() then return end
+            end
         end
+    end
+    
+    if not checkOwnHive() then
+        serverHop()
     end
 end
 
@@ -334,8 +368,9 @@ local function followAndKillVicious()
     platform.Anchored = true
     platform.Transparency = 1
     platform.CanCollide = true
-    platform.Name = "TerrainChunk_" .. tostring(math.random(1000, 9999))
-    local safeParent = workspace:FindFirstChild("Fields") or workspace
+    platform.Name = "BasePart"
+    
+    local safeParent = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera") or workspace
     platform.Parent = safeParent
     platform.CFrame = vicRoot.CFrame + Vector3.new(0, 8, 0)
     
@@ -361,7 +396,7 @@ local function followAndKillVicious()
         
         if not findVicious() then
             moveConn:Disconnect()
-            task.wait(2.0)
+            task.wait(1.5)
             platform:Destroy()
             _G.ThornsCollected = _G.ThornsCollected + 1
             serverHop()
@@ -372,23 +407,39 @@ local function followAndKillVicious()
         if not myHumanoid or myHumanoid.Health <= 0 then
             player.CharacterAdded:Wait()
             player.Character:WaitForChild("HumanoidRootPart", 20)
-            task.wait(0.8)
+            task.wait(0.5)
             if findVicious() then tweenTo(platform.Position) end
         end
     end
 end
 
+-- ============================================================
+-- ГЛАВНАЯ ЛОГИКА (БЕЗОПАСНЫЙ СВЕРХБЫСТРЫЙ СТАРТ)
+-- ============================================================
 local function main()
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
+    end
+    
+    -- Увеличено до 1.2 сек. Этого мало для персонажа, но достаточно, чтобы Roblox подгрузил папки с монстрами.
+    task.wait(1.2) 
+    
+    if _G.ServerHopMode == "Instant Hop" then
+        if not findVicious() and not findThorn() then
+            print("[Goose Hub] No target found on join. Executing safe server hop.")
+            serverHop()
+            return 
+        end
+    end
+
     if not player.Character then player.CharacterAdded:Wait() end
     player.Character:WaitForChild("HumanoidRootPart", 20)
-    
-    task.wait(1)
     
     while true do
         local vic = findVicious()
         if vic then
-            claimAllHives()
-            followAndKillVicious()
+            claimAllHives() 
+            followAndKillVicious() 
         else
             local thorn = findThorn()
             if thorn then
@@ -398,7 +449,7 @@ local function main()
                 local spawnTimeout = tick()
                 local spawned = false
                 while tick() - spawnTimeout < 10 do
-                    task.wait(0.3)
+                    task.wait(0.2)
                     if findVicious() then spawned = true break end
                 end
                 if spawned then 
@@ -410,14 +461,14 @@ local function main()
                 if _G.ServerHopMode == "Instant Hop" then
                     serverHop()
                 else
-                    task.wait(3)
+                    task.wait(1.5) 
                     if not findVicious() and not findThorn() then
                         serverHop()
                     end
                 end
             end
         end
-        task.wait(1)
+        task.wait(0.3) 
     end
 end
 
@@ -436,8 +487,7 @@ task.spawn(function()
             local currentPos = hrp.Position
             if lastPos and (currentPos - lastPos).Magnitude < 1 then
                 stuckTime = stuckTime + 1
-                if stuckTime >= 20 then
-                    print("[Watchdog] Anti-stuck trigger activated. Executing fallback server hop.")
+                if stuckTime >= 15 then 
                     serverHop()
                     break
                 end
