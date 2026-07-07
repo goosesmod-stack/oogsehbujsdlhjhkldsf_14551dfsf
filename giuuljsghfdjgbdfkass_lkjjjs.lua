@@ -1,0 +1,465 @@
+-- ============================================================
+-- GOOSE HUB — VICIOUS BEE KILLER 
+-- Created by happy goose
+-- ============================================================
+
+local Kavo = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
+
+local TweenService    = game:GetService("TweenService")
+local RunService      = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local Players         = game:GetService("Players")
+local StarterGui      = game:GetService("StarterGui")
+local Http            = game:GetService("HttpService")
+local GuiService      = game:GetService("GuiService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local UserInputService    = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+if not _G.VisitedServers then _G.VisitedServers = {} end
+if game.JobId and game.JobId ~= "" then _G.VisitedServers[game.JobId] = tick() end
+
+local SharedData = nil
+pcall(function()
+    if _G.GooseTransferData then
+        SharedData = _G.GooseTransferData
+        if SharedData.Visited then
+            for id, t in pairs(SharedData.Visited) do _G.VisitedServers[id] = t end
+        end
+    end
+end)
+
+_G.TweenSpeed = SharedData and SharedData.TweenSpeed or 400
+_G.ThornsCollected = SharedData and SharedData.Thorns or 0
+_G.StartTime = SharedData and SharedData.StartTime or tick()
+_G.ServerHopMode = SharedData and SharedData.HopMode or "Wait Spawn"
+_G.InitialStingers = SharedData and SharedData.InitialStingers or nil
+
+local function getCurrentStingers()
+    local count = 0
+    if player:GetAttribute("Stingers") then return player:GetAttribute("Stingers") end
+    if player:GetAttribute("Stinger") then return player:GetAttribute("Stinger") end
+    
+    pcall(function()
+        for _, v in ipairs(player:GetDescendants()) do
+            if (v:IsA("IntValue") or v:IsA("NumberValue")) and (v.Name == "Stingers" or v.Name == "Stinger") then
+                if v.Value and v.Value > 0 then
+                    count = v.Value
+                    return
+                end
+            end
+        end
+    end)
+    if count > 0 then return count end
+    
+    pcall(function()
+        local mainGui = player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("MainGui")
+        if mainGui then
+            for _, v in ipairs(mainGui:GetDescendants()) do
+                if v:IsA("TextLabel") and v.Text == "Stinger" then
+                    local row = v.Parent
+                    if row then
+                        for _, child in ipairs(row:GetDescendants()) do
+                            if child:IsA("TextLabel") and child.Text:match("x%d+") then
+                                count = tonumber(child.Text:match("%d+"))
+                                return
+                            elseif child:IsA("TextLabel") and child ~= v and tonumber(child.Text:match("^%d+$")) then
+                                count = tonumber(child.Text:match("^%d+$"))
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    return count or 0
+end
+
+local initialCheck = getCurrentStingers()
+if not _G.InitialStingers or _G.InitialStingers == 0 then
+    _G.InitialStingers = initialCheck > 0 and initialCheck or 0
+end
+
+local FieldsConfig = {
+    ["Clover Field"] = true, ["Spider Field"] = true, ["Cactus Field"] = true,
+    ["Rose Field"] = true, ["Mountain Top Field"] = true, ["Pepper Patch"] = true,
+    ["Sunflower Field"] = true, ["Mushroom Field"] = true, ["Blue Flower Field"] = true,
+    ["Dandelion Field"] = true, ["Strawberry Field"] = true, ["Bamboo Field"] = true,
+    ["Pineapple Patch"] = true, ["Stump Field"] = true, ["Pine Tree Forest"] = true,
+    ["Coconut Field"] = true
+}
+
+-- ============================================================
+-- ИНТЕРФЕЙС: СТРОГИЙ ЧЕРНО-КРАСНЫЙ СТИЛЬ (BloodTheme)
+-- ============================================================
+local Window = Kavo.CreateLib("GOOSE HUB v0.4 — VICIOUS BEE KILLER", "BloodTheme")
+local MainTab = Window:NewTab("Main")
+
+-- РАЗДЕЛ НАСТРОЕК
+local MainSection = MainTab:NewSection("Core Configuration")
+
+MainSection:NewSlider("Tween Speed", "Movement velocity for player transitions", 600, 100, function(Value) 
+    _G.TweenSpeed = Value 
+end)
+
+MainSection:NewDropdown("Server Hop Mode", "Execution method when target is absent", {"Wait Spawn", "Instant Hop"}, function(Option) 
+    _G.ServerHopMode = Option 
+end)
+
+-- РАЗДЕЛ СТАТИСТИКИ
+local StatsSection = MainTab:NewSection("Session Statistics")
+StatsSection:NewLabel("Developer: happy goose")
+local labelKilled = StatsSection:NewLabel("Vicious Killed: 0")
+local labelTime = StatsSection:NewLabel("Time Elapsed: 00:00:00")
+
+local function notify(title, text)
+    pcall(function() StarterGui:SetCore("SendNotification", {Title = title, Text = text, Duration = 3}) end)
+end
+
+local function getHRP() return player.Character and player.Character:FindFirstChild("HumanoidRootPart") end
+local function getHumanoid() return player.Character and player.Character:FindFirstChildOfClass("Humanoid") end
+
+local function prepareTeleportData()
+    local dataStruct = { 
+        TweenSpeed = _G.TweenSpeed, 
+        Thorns = _G.ThornsCollected, 
+        StartTime = _G.StartTime, 
+        HopMode = _G.ServerHopMode,
+        Visited = _G.VisitedServers,
+        InitialStingers = _G.InitialStingers
+    }
+    local serialized = Http:JSONEncode(dataStruct)
+    local qot = syn and syn.queue_on_teleport or queue_on_teleport or fluxus and fluxus.queue_on_teleport
+    if qot then qot([[ local data = game:GetService("HttpService"):JSONDecode(']] .. serialized .. [[') _G.GooseTransferData = data ]]) end
+end
+
+pcall(function()
+    GuiService.ErrorMessageChanged:Connect(function()
+        task.wait(0.1)
+        local guiProvider = game:GetService("CoreGui"):FindFirstChild("RobloxGuiProvider")
+        local errorPrompt = guiProvider and guiProvider:FindFirstChild("ErrorPrompt")
+        if errorPrompt then
+            local button = errorPrompt:FindFirstChildOfClass("TextButton") or errorPrompt:FindFirstChildOfClass("ImageButton")
+            if button then
+                local events = {"MouseButton1Click", "MouseButton1Down", "Activated"}
+                for _, event in ipairs(events) do if button[event] then for _, connection in ipairs(getconnections(button[event])) do connection:Fire() end end end
+            end
+        end
+    end)
+end)
+
+pcall(function()
+    for _, v in pairs(getconnections(player.Idled)) do v:Disable() end
+end)
+
+local function serverHop()
+    notify("Goose Hub", "Searching for unique server pool...")
+    if game.JobId and game.JobId ~= "" then _G.VisitedServers[game.JobId] = tick() end
+    task.wait(0.5)
+    prepareTeleportData()
+    
+    local placeId = game.PlaceId
+    local serverList = {}
+    
+    local ok, err = pcall(function()
+        local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+        local rawData = game:HttpGet(url)
+        local decoded = Http:JSONDecode(rawData)
+        
+        if decoded and decoded.data then
+            for _, server in ipairs(decoded.data) do
+                if server.id and not _G.VisitedServers[server.id] then
+                    if server.playing and server.maxPlayers then
+                        if server.playing < math.floor(server.maxPlayers * 0.8) and server.playing > 0 then
+                            table.insert(serverList, server)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    
+    if ok and #serverList > 0 then
+        local picked = serverList[math.random(1, #serverList)]
+        _G.VisitedServers[picked.id] = tick()
+        
+        print("[Goose Hub] Connecting to unique instance (" .. picked.playing .. "/" .. picked.maxPlayers .. ")")
+        notify("Goose Hub", "Teleporting to fresh instance...")
+        
+        TeleportService:TeleportToPlaceInstance(placeId, picked.id, player)
+        task.wait(5)
+        serverHop() 
+    else
+        print("[Goose Hub] Pool depleted. Resetting tracking cache.")
+        _G.VisitedServers = {}
+        if game.JobId then _G.VisitedServers[game.JobId] = tick() end
+        pcall(function() TeleportService:Teleport(placeId, player) end)
+    end
+end
+
+local function tweenTo(targetPosition)
+    local hrp = getHRP()
+    if not hrp then return end
+    local startPos = hrp.Position
+    
+    local endPos = targetPosition + Vector3.new(0, math.random(4, 7), 0)
+    local distance = (endPos - startPos).Magnitude
+    
+    local dynamicSpeed = _G.TweenSpeed + math.random(-35, 35)
+    local duration = distance / dynamicSpeed
+
+    local flyPlat = Instance.new("Part")
+    local flyPlatName = "MeshPart_" .. tostring(math.random(1000, 9999))
+    flyPlat.Size = Vector3.new(15, 1, 15)
+    flyPlat.Anchored = true
+    flyPlat.Transparency = 1
+    flyPlat.CanCollide = true
+    flyPlat.Name = flyPlatName
+    local safeParent = workspace:FindFirstChild("Fields") or workspace
+    flyPlat.Parent = safeParent
+    flyPlat.CFrame = hrp.CFrame - Vector3.new(0, 3.5, 0)
+
+    local platConn = RunService.Heartbeat:Connect(function()
+        if hrp and workspace:FindFirstChild(flyPlatName, true) or safeParent:FindFirstChild(flyPlatName) then 
+            flyPlat.CFrame = hrp.CFrame - Vector3.new(0, 3.5, 0) 
+        end
+    end)
+
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(endPos)})
+    tween:Play()
+    tween.Completed:Wait()
+    
+    platConn:Disconnect()
+    flyPlat:Destroy()
+    
+    task.wait(math.random(1, 3) / 10)
+end
+
+local function isFieldAllowed(position)
+    local fieldsFolder = workspace:FindFirstChild("Fields")
+    if not fieldsFolder then return true end
+    for _, field in ipairs(fieldsFolder:GetChildren()) do
+        if field:IsA("BasePart") then
+            local distance = (Vector3.new(position.X, 0, position.Z) - Vector3.new(field.Position.X, 0, field.Position.Z)).Magnitude
+            if distance < 145 then return FieldsConfig[field.Name] == true end
+        end
+    end
+    return true
+end
+
+local function findThorn()
+    local wts = workspace:FindFirstChild("Particles") and workspace.Particles:FindFirstChild("WTs")
+    if not wts then return nil end
+    for _, v in ipairs(wts:GetChildren()) do
+        if v.Name == "WaitingThorn" and isFieldAllowed(v.Position) then return v end
+    end
+    return nil
+end
+
+local function findVicious()
+    local monsters = workspace:FindFirstChild("Monsters")
+    if monsters then
+        for _, v in ipairs(monsters:GetChildren()) do
+            if v.Name:find("Vicious Bee") or v.Name:find("Vicious") then
+                local hum = v:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then return v end
+            end
+        end
+    end
+    
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v.Name:find("Vicious Bee") or v.Name:find("Vicious") then
+            local hum = v:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then return v end
+        end
+    end
+    return nil
+end
+
+-- ============================================================
+-- ОПТИМИЗИРОВАННЫЙ ЗАХВАТ УЛЬЯ (БЕЗ ЛИШНИХ ПРОВЕРОК)
+-- ============================================================
+local function claimAllHives()
+    local canvases = workspace:FindFirstChild("HiveDeco") and workspace.HiveDeco:FindFirstChild("StickerCanvases")
+    if not canvases then return end
+    
+    local claimed = false
+    for i = 1, 6 do
+        pcall(function()
+            local canvas = canvases:FindFirstChild("StickerCanvas" .. i)
+            if canvas and canvas:FindFirstChild("OriginPart") then
+                local nameTag = canvas:FindFirstChild("PlayerName") or canvas:FindFirstChild("OwnerTag")
+                local occupied = canvas:FindFirstChild("Occupied")
+                
+                if not nameTag and (not occupied or occupied.Value == false or occupied.Value == 0) then
+                    print("[Goose Hub] Unclaimed Hive detected: Slot " .. i)
+                    
+                    tweenTo(canvas.OriginPart.Position)
+                    task.wait(0.4 + (math.random() * 0.2))
+                    
+                    local hrp = getHRP()
+                    if hrp then hrp.CFrame = canvas.OriginPart.CFrame + Vector3.new(0, 2, 0) end
+                    task.wait(0.2)
+                    
+                    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    task.wait(0.1 + (math.random() * 0.15)) 
+                    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                    task.wait(0.6 + (math.random() * 0.3))
+                    
+                    claimed = true
+                end
+            end
+        end)
+        if claimed then 
+            print("[Goose Hub] Hive secured. Flying to target immediately.")
+            break -- Мгновенный выход, не проверяя остальные слоты
+        end
+    end
+end
+
+local function followAndKillVicious()
+    local vic = findVicious()
+    if not vic then return end
+    
+    local vicRoot = vic:FindFirstChild("HumanoidRootPart") or vic.PrimaryPart or vic:FindFirstChild("Torso") or vic:FindFirstChild("Head") or vic:FindFirstChildOfClass("BasePart")
+    if not vicRoot then return end
+
+    notify("Goose Hub", "Target locked: Vicious Bee. Engaging combat.")
+
+    local platform = Instance.new("Part")
+    platform.Size = Vector3.new(45, 1, 45)
+    platform.Anchored = true
+    platform.Transparency = 1
+    platform.CanCollide = true
+    platform.Name = "TerrainChunk_" .. tostring(math.random(1000, 9999))
+    local safeParent = workspace:FindFirstChild("Fields") or workspace
+    platform.Parent = safeParent
+    platform.CFrame = vicRoot.CFrame + Vector3.new(0, 8, 0)
+    
+    tweenTo(platform.Position)
+
+    local moveConn = RunService.Heartbeat:Connect(function()
+        if not vicRoot or not vicRoot.Parent then return end
+        platform.CFrame = CFrame.new(vicRoot.Position + Vector3.new(0, 8, 0))
+        
+        local h = getHumanoid()
+        local hrp = getHRP()
+        if hrp and h and h.Health > 0 then 
+            if (hrp.Position - platform.Position).Magnitude > 35 or (hrp.Position.Y - platform.Position.Y) < -4 then
+                hrp.CFrame = platform.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.05)
+            end
+            h:MoveTo(Vector3.new(vicRoot.Position.X, platform.Position.Y + 2, vicRoot.Position.Z)) 
+        end
+    end)
+
+    while true do
+        task.wait(0.5)
+        
+        if not findVicious() then
+            moveConn:Disconnect()
+            task.wait(2.0)
+            platform:Destroy()
+            _G.ThornsCollected = _G.ThornsCollected + 1
+            serverHop()
+            return
+        end
+        
+        local myHumanoid = getHumanoid()
+        if not myHumanoid or myHumanoid.Health <= 0 then
+            player.CharacterAdded:Wait()
+            player.Character:WaitForChild("HumanoidRootPart", 20)
+            task.wait(0.8)
+            if findVicious() then tweenTo(platform.Position) end
+        end
+    end
+end
+
+local function main()
+    if not player.Character then player.CharacterAdded:Wait() end
+    player.Character:WaitForChild("HumanoidRootPart", 20)
+    
+    task.wait(1)
+    
+    while true do
+        local vic = findVicious()
+        if vic then
+            claimAllHives()
+            followAndKillVicious()
+        else
+            local thorn = findThorn()
+            if thorn then
+                claimAllHives()
+                tweenTo(thorn.Position)
+                
+                local spawnTimeout = tick()
+                local spawned = false
+                while tick() - spawnTimeout < 10 do
+                    task.wait(0.3)
+                    if findVicious() then spawned = true break end
+                end
+                if spawned then 
+                    followAndKillVicious() 
+                else 
+                    serverHop() 
+                end
+            else
+                if _G.ServerHopMode == "Instant Hop" then
+                    serverHop()
+                else
+                    task.wait(3)
+                    if not findVicious() and not findThorn() then
+                        serverHop()
+                    end
+                end
+            end
+        end
+        task.wait(1)
+    end
+end
+
+task.spawn(main)
+
+-- ============================================================
+-- СИСТЕМНЫЕ ПОТОКИ: WATCHDOG И ОБНОВЛЕНИЕ ИНТЕРФЕЙСА
+-- ============================================================
+
+task.spawn(function()
+    local lastPos = nil
+    local stuckTime = 0
+    while task.wait(1) do
+        local hrp = getHRP()
+        if hrp then
+            local currentPos = hrp.Position
+            if lastPos and (currentPos - lastPos).Magnitude < 1 then
+                stuckTime = stuckTime + 1
+                if stuckTime >= 20 then
+                    print("[Watchdog] Anti-stuck trigger activated. Executing fallback server hop.")
+                    serverHop()
+                    break
+                end
+            else
+                stuckTime = 0
+            end
+            lastPos = currentPos
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(function()
+            local elapsed = tick() - _G.StartTime
+            local hours = elapsed / 3600
+            local hStr = string.format("%02d", math.floor(hours))
+            local mStr = string.format("%02d", math.floor((elapsed / 60) % 60))
+            local sStr = string.format("%02d", math.floor(elapsed % 60))
+            
+            labelKilled:UpdateLabel("Vicious Killed: " .. tostring(_G.ThornsCollected))
+            labelTime:UpdateLabel("Time Elapsed: " .. hStr .. ":" .. mStr .. ":" .. sStr)
+        end)
+    end
+end)
