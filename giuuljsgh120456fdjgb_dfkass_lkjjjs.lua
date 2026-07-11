@@ -3,6 +3,23 @@
 -- Created by happy goose 
 -- ============================================================
 
+-- ============================================================
+-- СИСТЕМА ЗАЩИТЫ ПО ROBLOX ID (ID LOCK)
+-- ============================================================
+local allowed_ids = {
+    ["1753335441"] = true, -- Твой личный ID для тестов
+    -- Сюда бот или ты будете добавлять новые ID в будущем
+}
+
+local current_id = tostring(game:GetService("Players").LocalPlayer.UserId)
+
+if not allowed_ids[current_id] then
+    game:GetService("Players").LocalPlayer:Kick("🔒 Ошибка авторизации. Этот скрипт вам не принадлежит!")
+    while true do task.wait(99999) end -- Намертво вешаем скрипт, если кик обошли
+    return
+end
+-- ============================================================
+
 local Kavo = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
 
 local TweenService    = game:GetService("TweenService")
@@ -421,7 +438,6 @@ local function main()
         game.Loaded:Wait()
     end
     
-    -- Увеличено до 1.2 сек. Этого мало для персонажа, но достаточно, чтобы Roblox подгрузил папки с монстрами.
     task.wait(1.2) 
     
     if _G.ServerHopMode == "Instant Hop" then
