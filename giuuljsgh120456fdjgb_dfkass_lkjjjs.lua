@@ -1,5 +1,5 @@
 -- ============================================================
--- GOOSE HUB — VICIOUS BEE KILLER (BSS CHEAT)
+-- GOOSE HUB — VICIOUS BEE KILLER
 -- Created by happy goose 
 -- ============================================================
 
@@ -421,6 +421,7 @@ local function main()
         game.Loaded:Wait()
     end
     
+    -- Увеличено до 1.2 сек. Этого мало для персонажа, но достаточно, чтобы Roblox подгрузил папки с монстрами.
     task.wait(1.2) 
     
     if _G.ServerHopMode == "Instant Hop" then
