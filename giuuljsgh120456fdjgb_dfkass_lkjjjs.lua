@@ -1,5 +1,5 @@
 -- ============================================================
--- GOOSE HUB — VICIOUS BEE KILLER v0.5 
+-- GOOSE HUB — VICIOUS BEE KILLER 
 -- Created by happy goose 
 -- ============================================================
 
@@ -94,7 +94,6 @@ local FieldsConfig = {
 -- ============================================================
 -- ИНТЕРФЕЙС
 -- ============================================================
--- ТУТ ИЗМЕНЕНА ВЕРСИЯ НА v0.5
 local Window = Kavo.CreateLib("GOOSE HUB v0.5 — VICIOUS BEE KILLER", "BloodTheme")
 local MainTab = Window:NewTab("Main")
 
@@ -333,6 +332,7 @@ local function claimAllHives()
             end
             
             if isFree then
+                -- ИЗМЕНЕНО: Твинимся сразу в финальную точку над ульем (без жесткого ТП в конце)
                 tweenTo(canvas.OriginPart.Position + Vector3.new(0, 2, 0))
                 task.wait(0.3)
                 
@@ -373,6 +373,7 @@ local function followAndKillVicious()
     
     tweenTo(platform.Position)
 
+    -- ИЗМЕНЕНО: Добавлен предохранитель для контроля твинов внутри Heartbeat-цикла
     local isResetting = false 
 
     local moveConn = RunService.Heartbeat:Connect(function()
@@ -382,9 +383,11 @@ local function followAndKillVicious()
         local h = getHumanoid()
         local hrp = getHRP()
         if hrp and h and h.Health > 0 and not isResetting then 
+            -- Если персонаж улетел или упал с платформы:
             if (hrp.Position - platform.Position).Magnitude > 35 or (hrp.Position.Y - platform.Position.Y) < -4 then
                 isResetting = true
                 task.spawn(function()
+                    -- ИЗМЕНЕНО: Возвращаем игрока обратно на платформу плавным твином вместо моментального ТП
                     tweenTo(platform.Position + Vector3.new(0, 3, 0))
                     isResetting = false
                 end)
