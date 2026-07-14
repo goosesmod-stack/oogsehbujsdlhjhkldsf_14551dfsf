@@ -1,5 +1,5 @@
 -- ============================================================
--- GOOSE HUB — VICIOUS BEE KILLER
+-- GOOSE HUB — VICIOUS BEE KILLER v0.5 
 -- Created by happy goose 
 -- ============================================================
 
@@ -94,7 +94,8 @@ local FieldsConfig = {
 -- ============================================================
 -- ИНТЕРФЕЙС
 -- ============================================================
-local Window = Kavo.CreateLib("GOOSE HUB v0.4 — VICIOUS BEE KILLER", "BloodTheme")
+-- ТУТ ИЗМЕНЕНА ВЕРСИЯ НА v0.5
+local Window = Kavo.CreateLib("GOOSE HUB v0.5 — VICIOUS BEE KILLER", "BloodTheme")
 local MainTab = Window:NewTab("Main")
 
 local MainSection = MainTab:NewSection("Core Configuration")
@@ -332,12 +333,8 @@ local function claimAllHives()
             end
             
             if isFree then
-                tweenTo(canvas.OriginPart.Position)
-                task.wait(0.2)
-                
-                local hrp = getHRP()
-                if hrp then hrp.CFrame = canvas.OriginPart.CFrame + Vector3.new(0, 2, 0) end
-                task.wait(0.1)
+                tweenTo(canvas.OriginPart.Position + Vector3.new(0, 2, 0))
+                task.wait(0.3)
                 
                 VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
                 task.wait(math.random(15, 25) / 100) 
@@ -376,18 +373,25 @@ local function followAndKillVicious()
     
     tweenTo(platform.Position)
 
+    local isResetting = false 
+
     local moveConn = RunService.Heartbeat:Connect(function()
         if not vicRoot or not vicRoot.Parent then return end
         platform.CFrame = CFrame.new(vicRoot.Position + Vector3.new(0, 8, 0))
         
         local h = getHumanoid()
         local hrp = getHRP()
-        if hrp and h and h.Health > 0 then 
+        if hrp and h and h.Health > 0 and not isResetting then 
             if (hrp.Position - platform.Position).Magnitude > 35 or (hrp.Position.Y - platform.Position.Y) < -4 then
-                hrp.CFrame = platform.CFrame + Vector3.new(0, 3, 0)
-                task.wait(0.05)
+                isResetting = true
+                task.spawn(function()
+                    tweenTo(platform.Position + Vector3.new(0, 3, 0))
+                    isResetting = false
+                end)
             end
-            h:MoveTo(Vector3.new(vicRoot.Position.X, platform.Position.Y + 2, vicRoot.Position.Z)) 
+            if not isResetting then
+                h:MoveTo(Vector3.new(vicRoot.Position.X, platform.Position.Y + 2, vicRoot.Position.Z)) 
+            end
         end
     end)
 
@@ -421,7 +425,6 @@ local function main()
         game.Loaded:Wait()
     end
     
-    -- Увеличено до 1.2 сек. Этого мало для персонажа, но достаточно, чтобы Roblox подгрузил папки с монстрами.
     task.wait(1.2) 
     
     if _G.ServerHopMode == "Instant Hop" then
